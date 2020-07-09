@@ -1,7 +1,8 @@
 package main
-
+//second copy
 import (
 	"bytes"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,33 +15,33 @@ import (
 	"os"
 
 	"github.com/Shopify/sarama"
-	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
 	"github.com/samuel/go-zookeeper/zk"
 )
 
 var (
 	zkAddr            = flag.String("zkAddr", "", "zookeeper address")
-	basePath          = flag.String("basePath", "/kafka", "kafka base path in zookeeper")
-	brokers           = flag.String("brokers", "localhost:9092", "brokers' address")
-	topic             = flag.String("topic", "trigger", "topic name")
-	group             = flag.String("group", "default", "consumer group name")
+	basePath          = flag.String("basePath", "/kafka/", "kafka base path in zookeeper")
+	brokers           = flag.String("brokers", "10.254.20.21:9093, 10.254.20.22:9093, 10.254.20.23:9093", "brokers' address")
+	topic             = flag.String("topic", "com.sap.dsc.ac.v1.template.int.commit-stage.d03abdcb-caf7-48bc-a35c-1c52b086f491", "topic name")
+	group             = flag.String("group", "message-synthesizer-commit-stage", "consumer group name")
 	version           = flag.String("version", "0.10.0.1", "kafka version. min version is 0.8.2.0")
-	lagThreshold      = flag.Int("lagThreshold", 1000, "alarm lag threshold for partition")
-	totalLagThreshold = flag.Int("totalLagThreshold", 5000, "alarm total lag threshold for topic")
+	lagThreshold      = flag.Int("lagThreshold", 1, "alarm lag threshold for partition")
+	totalLagThreshold = flag.Int("totalLagThreshold", 1, "alarm total lag threshold for topic")
 	interval          = flag.Duration("duration", time.Minute, "check interval time")
-	informEmail       = flag.String("email", "xxx@xxxxxx.com", "inform user email")
-	smtpHost          = flag.String("smtp.host", "smtp.sina.com", "smtp host for sending alarms")
-	smtpPort          = flag.Int("smtp.port", 25, "smtp port for sending alarms")
-	smtpUser          = flag.String("smtp.user", "kafka_monitor", "smtp user for sending alarms")
-	smtpPassword      = flag.String("smtp.password", "xxxxxx", "smtp user password for sending alarms")
+	informEmail       = flag.String("email", "kunal.jaiswal.sap@gmail.com", "inform user email")
+	smtpHost          = flag.String("mail.smtp.host", "smtp.gmail.com", "smtp host for sending alarms")
+	smtpPort          = flag.Int("mail.smtp.port", 465, "smtp port for sending alarms")
+	smtpUser          = flag.String("mail.smtp.user", "kunal.jaiswal.sap@gmail.com", "smtp user for sending alarms")
+	smtpPassword      = flag.String("mail.smtp.password", "Zaq!2wsxcde3", "smtp user password for sending alarms")
+
 )
 
 var (
 	maybeProblem       = false
 	restored           = true
 	lastTriggeredTime  time.Time
-	mergeAlertDuration = 5 * time.Minute
+	mergeAlertDuration = 1 * time.Second
 	kafkaVersions      = kafkaVersion()
 )
 
@@ -66,6 +67,8 @@ func main() {
 }
 
 func check() {
+	l := log.New(os.Stdout, "sample-srv ", log.LstdFlags|log.Lshortfile)
+	l.Println("server started")
 	kafkaBrokers := strings.Split(*brokers, ",")
 	sort.Sort(sort.StringSlice(kafkaBrokers))
 
@@ -103,7 +106,7 @@ func check() {
 	for range ticker.C {
 		buf.Reset()
 
-		//check brokers change event
+		//check brokers change event-- working
 		newKafkaBrokers := runtimeKafkaBrokers(client)
 		s1 := strings.Join(kafkaBrokers, ",")
 		s2 := strings.Join(newKafkaBrokers, ",")
@@ -138,9 +141,11 @@ func check() {
 		}
 
 		buf.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format("2006-01-02 15:04:05")))
-		buf.WriteString(fmt.Sprintf("Brokers: %s\nVersion: %s\n", color.GreenString(*brokers), color.GreenString(*version)))
-		buf.WriteString(fmt.Sprintf("Topic: %s, Group: %s, Partitions: %s\n\n",
-			color.GreenString(*topic), color.GreenString(*group), color.GreenString(strconv.Itoa(len(partitions)))))
+		buf.WriteString(fmt.Sprintf("Brokers:%s\n", *brokers))
+		buf.WriteString(fmt.Sprintf("Version: %s\n", *version))
+		buf.WriteString(fmt.Sprintf("Topic: %s\n", *topic))
+		buf.WriteString(fmt.Sprintf("Group: %s\n", *group))
+		buf.WriteString(fmt.Sprintf("Partitions: %s\n", strconv.Itoa(len(partitions))))
 
 		infos := GetPartitionInfo(client, *topic, partitions, c, *basePath)
 		if len(infos) > 0 {
@@ -164,7 +169,7 @@ func check() {
 
 			buf.WriteString("\n\n")
 		}
-		//lag
+		//lag calculation start here
 		if offsets, err := FetchOffsets(client, *topic, *group); err == nil {
 
 			table := tablewriter.NewWriter(&buf)
@@ -225,7 +230,7 @@ func compareString(s string) string {
 func convertLag(lag int64, threshold int) string {
 	lagStr := strconv.Itoa(int(lag))
 	if int(lag) > threshold {
-		lagStr = color.RedString(lagStr)
+		lagStr = lagStr
 	}
 
 	return lagStr
